@@ -53,20 +53,39 @@ export default function App(){
 
     const started = Date.now();
     async function poll(){
-      await new Promise(r=>setTimeout(r, 1200));
+      await new Promise(r=>setTimeout(r, 1000));
       await fetchMessages(id);
-      if(Date.now() - started < 15000){
-        const hasConsensus = (messages||[]).some(m=>m.role==='consensus');
-        if(!hasConsensus) return poll();
-      }
+      const ms = Date.now() - started;
+      const hasConsensus = (m=>m.some(x=>x.role==='consensus'))(messages || []);
+      if(!hasConsensus && ms < 20000) return poll();
       setLoading(false);
     }
     poll();
   }
 
+  async function handleRegenerate(){
+    if(!activeId) return;
+    setLoading(true);
+    await fetch(`${API}/api/chats/${activeId}/regenerate`, { method: 'POST' });
+    await new Promise(r=>setTimeout(r, 1200));
+    await fetchMessages(activeId);
+    setLoading(false);
+  }
+
+  function handleCopy(text){
+    navigator.clipboard.writeText(text);
+  }
+
+  async function handleNewChat(){
+    const r = await fetch(`${API}/api/chats`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+    const j = await r.json();
+    setActiveId(j.id);
+    await fetchChats();
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#3B7CFF] to-[#04043A] text-white">
-      <Header />
+      <Header onNewChat={handleNewChat} />
 
       {/* Mobile history button */}
       <button
@@ -102,7 +121,7 @@ export default function App(){
         <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-2xl overflow-hidden grid grid-cols-1 md:grid-cols-[18rem_1fr]">
           <Sidebar chats={chats} activeId={activeId} onSelect={setActiveId} />
           <div className="flex flex-col h-[calc(100dvh-240px)]">
-            <Chat messages={messages} />
+            <Chat messages={messages} onRegenerate={handleRegenerate} onCopy={handleCopy} />
             <Composer onSend={handleSend} />
           </div>
         </div>
